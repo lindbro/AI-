@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-контроллер | Защита от финансовых потерь</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; background: #0f172a; color: #e2e8f0; }
+        .glass { background: rgba(30,41,59,0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+        .grid-bg {
+            background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
+        .card-danger { background: linear-gradient(135deg, rgba(220,38,38,0.18) 0%, rgba(30,41,59,0.95) 100%); border: 1px solid rgba(220,38,38,0.3); }
+        .card-success { background: linear-gradient(135deg, rgba(16,185,129,0.18) 0%, rgba(30,41,59,0.95) 100%); border: 1px solid rgba(16,185,129,0.3); }
+        .card-warning { background: linear-gradient(135deg, rgba(245,158,11,0.18) 0%, rgba(30,41,59,0.95) 100%); border: 1px solid rgba(245,158,11,0.3); }
+        .card-default { background: rgba(30,41,59,0.6); border: 1px solid rgba(255,255,255,0.08); }
+        .btn-primary { background: linear-gradient(135deg,#dc2626,#b91c1c); box-shadow: 0 10px 25px -5px rgba(220,38,38,0.4); transition: all .3s; }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 20px 35px -5px rgba(220,38,38,0.6); }
+        .status-overdue { background: rgba(220,38,38,0.2); color: #fca5a5; border: 1px solid rgba(220,38,38,0.5); }
+        .status-risk { background: rgba(245,158,11,0.2); color: #fcd34d; border: 1px solid rgba(245,158,11,0.5); }
+        .status-normal { background: rgba(16,185,129,0.2); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.5); }
+        .row-overdue { background: rgba(220,38,38,0.05); border-left: 3px solid #dc2626; }
+        @keyframes pulseRed { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.6)} 50%{box-shadow:0 0 20px 0 rgba(220,38,38,.3)} }
+        @keyframes blinkRed { 0%,90%,100%{opacity:1} 95%{opacity:.5} }
+        .pulse-red { animation: pulseRed 2s infinite; }
+        .blink-red { animation: blinkRed 2s infinite; }
+        .progress-track { background: rgba(255,255,255,0.08); border-radius:9999px; overflow:hidden; height:10px; }
+        .progress-fill { background: linear-gradient(90deg,#10b981,#34d399); height:100%; border-radius:9999px; transition: width 1.2s cubic-bezier(.4,0,.2,1); }
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background:#1e293b; } ::-webkit-scrollbar-thumb { background:#475569; border-radius:3px; }
+        tr:hover td { background: rgba(255,255,255,0.03); }
+    </style>
+</head>
+<body class="grid-bg min-h-screen">
+
+<!-- Alert Banner -->
+<div id="alertBanner" class="hidden bg-red-600 text-white px-4 py-3">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+        <div class="flex items-center gap-3">
+            <i class="fas fa-exclamation-triangle animate-pulse"></i>
+            <span class="font-semibold text-sm">КРИТИЧЕСКОЕ: Просрочки на сумму <span id="bannerAmt"></span> ₽ — риск штрафов</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="urgentAction()" class="bg-white text-red-600 px-4 py-1.5 rounded-lg font-semibold text-sm hover:bg-red-50 transition">Срочное вмешательство</button>
+            <button onclick="closeBanner()" class="p-1 hover:bg-red-500 rounded transition"><i class="fas fa-times"></i></button>
+        </div>
+    </div>
+</div>
+
+<!-- Nav -->
+<nav class="border-b border-gray-800 bg-gray-900/80 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16 items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-red-600 to-red-800 rounded-xl flex items-center justify-center shadow-lg shadow-red-900/50">
+                    <i class="fas fa-shield-alt text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-white tracking-tight leading-tight">AI-контроллер</h1>
+                    <p class="text-xs text-gray-400 leading-tight">Защита от финансовых потерь</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="hidden md:flex items-center gap-2 px-3 py-1.5 bg-emerald-900/30 border border-emerald-700/50 rounded-full">
+                    <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                    <span class="text-xs text-emerald-400 font-medium">Система активна</span>
+                </div>
+                <button onclick="loadDemo()" class="btn-primary text-white px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 text-sm">
+                    <i class="fas fa-play"></i> Запустить демо
+                </button>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+    <!-- Welcome block -->
+    <div id="welcomeBlock" class="glass rounded-2xl p-10 text-center space-y-5">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center shadow-lg shadow-red-900/40">
+            <i class="fas fa-shield-alt text-white text-2xl"></i>
+        </div>
+        <div>
+            <h2 class="text-3xl font-bold text-white tracking-tight">AI-контроллер защиты от потерь</h2>
+            <p class="text-slate-400 mt-2 max-w-lg mx-auto text-sm leading-relaxed">Автоматический мониторинг просрочек, расчёт штрафов и оповещение ответственных лиц. Система предотвращает финансовые потери до их возникновения.</p>
+        </div>
+        <button onclick="loadDemo()" class="btn-primary inline-flex items-center gap-2 text-white px-8 py-3.5 rounded-xl font-semibold text-base">
+            <i class="fas fa-play"></i> Запустить демо
+        </button>
+    </div>
+
+    <!-- Dashboard (hidden until demo) -->
+    <div id="dashboard" class="hidden space-y-6">
+
+        <!-- Metrics -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="card-danger rounded-xl p-5 hover:-translate-y-0.5 transition-transform">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-9 h-9 rounded-lg bg-red-600/20 flex items-center justify-center text-red-400"><i class="fas fa-dollar-sign"></i></div>
+                    <span class="text-xs uppercase tracking-widest font-semibold text-slate-400">Общая просрочка</span>
+                </div>
+                <div class="text-3xl sm:text-4xl font-extrabold tabular-nums text-red-300" id="mTotal">0 ₽</div>
+                <p class="text-xs text-slate-400 mt-2">8 контрагентов</p>
+            </div>
+            <div class="card-warning rounded-xl p-5 hover:-translate-y-0.5 transition-transform">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-9 h-9 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-400"><i class="fas fa-exclamation-triangle"></i></div>
+                    <span class="text-xs uppercase tracking-widest font-semibold text-slate-400">Начисленные штрафы</span>
+                </div>
+                <div class="text-3xl sm:text-4xl font-extrabold tabular-nums text-amber-300" id="mFines">0 ₽</div>
+                <p class="text-xs text-slate-400 mt-2">За текущий период</p>
+            </div>
+            <div class="card-danger rounded-xl p-5 hover:-translate-y-0.5 transition-transform">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-9 h-9 rounded-lg bg-red-600/20 flex items-center justify-center text-red-400"><i class="fas fa-ban"></i></div>
+                    <span class="text-xs uppercase tracking-widest font-semibold text-slate-400">Критические</span>
+                </div>
+                <div class="text-3xl sm:text-4xl font-extrabold tabular-nums text-red-300" id="mCritical">0</div>
+                <p class="text-xs text-slate-400 mt-2">Просрочка &gt; 30 дней</p>
+            </div>
+            <div class="card-success rounded-xl p-5 hover:-translate-y-0.5 transition-transform">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-9 h-9 rounded-lg bg-emerald-600/20 flex items-center justify-center text-emerald-400"><i class="fas fa-piggy-bank"></i></div>
+                    <span class="text-xs uppercase tracking-widest font-semibold text-slate-400">Сэкономлено</span>
+                </div>
+                <div class="text-3xl sm:text-4xl font-extrabold tabular-nums text-emerald-300" id="mSaved">0 ₽</div>
+                <p class="text-xs text-slate-400 mt-2">Благодаря AI-контролю</p>
+            </div>
+        </div>
+
+        <!-- Savings bar -->
+        <div class="glass rounded-xl p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold text-white">Сэкономлено от штрафов</h3>
+                <span id="savePct" class="text-xs text-emerald-400 font-bold">0%</span>
+            </div>
+            <div class="progress-track">
+                <div id="saveBar" class="progress-fill" style="width:0%"></div>
+            </div>
+            <div class="flex justify-between mt-2 text-xs text-slate-400">
+                <span>Сэкономлено: <span id="saveLabel" class="text-emerald-400 font-semibold">0 ₽</span></span>
+                <span>Общий риск: <span id="riskLabel" class="text-red-400 font-semibold">0 ₽</span></span>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="glass rounded-xl p-5">
+                <h3 class="text-base font-semibold text-white mb-4">Динамика просрочек и штрафов</h3>
+                <canvas id="trendChart" height="180"></canvas>
+            </div>
+            <div class="glass rounded-xl p-5">
+                <h3 class="text-base font-semibold text-white mb-4">Распределение по рискам</h3>
+                <div class="flex items-center gap-6">
+                    <canvas id="riskChart" width="180" height="180" style="max-width:180px;max-height:180px"></canvas>
+                    <div id="riskLegend" class="space-y-3 text-sm flex-1"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="glass rounded-xl overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-700/50 flex items-center justify-between">
+                <h3 class="text-base font-semibold text-white">Реестр просроченных обязательств</h3>
+                <span class="text-xs text-slate-400">8 записей</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-xs uppercase tracking-wider text-slate-400 border-b border-slate-700/50">
+                            <th class="text-left px-5 py-3 font-semibold">Контрагент</th>
+                            <th class="text-left px-5 py-3 font-semibold">Документ</th>
+                            <th class="text-right px-5 py-3 font-semibold">Сумма</th>
+                            <th class="text-center px-5 py-3 font-semibold">Дней</th>
+                            <th class="text-right px-5 py-3 font-semibold">Штраф</th>
+                            <th class="text-center px-5 py-3 font-semibold">Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody id="overdueTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Action Log -->
+        <div class="glass rounded-xl p-5">
+            <h3 class="text-base font-semibold text-white mb-4">Лог действий AI-контроллера</h3>
+            <div id="actionLog" class="space-y-3 max-h-72 overflow-y-auto pr-1"></div>
+        </div>
+
+    </div>
+</main>
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-6 right-6 z-50 hidden max-w-sm">
+    <div class="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 shadow-2xl flex items-start gap-3">
+        <i id="toastIcon" class="fas fa-check-circle text-emerald-400 mt-0.5"></i>
+        <div>
+            <p id="toastTitle" class="text-white font-semibold text-sm"></p>
+            <p id="toastDesc" class="text-slate-400 text-xs mt-0.5"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+const ITEMS = [
+    { c: 'ООО "СтройГарант"', d: 'Счёт №1247', a: 2450000, days: 47, f: 122500, s: 'overdue' },
+    { c: 'АО "ТехноСнаб"', d: 'Акт №892', a: 1890000, days: 32, f: 75600, s: 'overdue' },
+    { c: 'ИП Козлов А.В.', d: 'Договор №344', a: 780000, days: 28, f: 31200, s: 'overdue' },
+    { c: 'ООО "МеталлПром"', d: 'Счёт №2103', a: 3100000, days: 15, f: 46500, s: 'risk' },
+    { c: 'ЗАО "Логистик+"', d: 'Накладная №567', a: 560000, days: 12, f: 16800, s: 'risk' },
+    { c: 'ООО "АльфаТрейд"', d: 'Счёт №3301', a: 1200000, days: 7, f: 12000, s: 'risk' },
+    { c: 'ООО "Энергомаш"', d: 'Акт №1102', a: 420000, days: 3, f: 2100, s: 'normal' },
+    { c: 'ПАО "Сибнефть"', d: 'Договор №88', a: 5600000, days: 1, f: 5600, s: 'normal' },
+];
+const ACTIONS = [
+    { icon: 'fa-bolt', type: 'critical', msg: 'Обнаружена критическая просрочка: ООО "СтройГарант" — 47 дней, штраф 122 500 ₽', time: 'Сегодня, 09:12' },
+    { icon: 'fa-envelope', type: 'critical', msg: 'Автоматическое уведомление отправлено ООО "СтройГарант"', time: 'Сегодня, 09:13' },
+    { icon: 'fa-bell', type: 'warning', msg: 'Риск просрочки: ООО "МеталлПром" приближается к 30-дневной отметке', time: 'Сегодня, 08:45' },
+    { icon: 'fa-file-alt', type: 'success', msg: 'Сформирован ежедневный отчёт по просрочкам для CFO', time: 'Сегодня, 08:00' },
+    { icon: 'fa-bolt', type: 'warning', msg: 'Автоматический перерасчёт штрафов для АО "ТехноСнаб"', time: 'Вчера, 17:30' },
+    { icon: 'fa-envelope', type: 'success', msg: 'Еженедельный дайджест отправлен финансовому директору', time: 'Вчера, 09:00' },
+];
+const TREND = [
+    { m:'Авг', ov:1200000, fi:48000 }, { m:'Сен', ov:1800000, fi:72000 },
+    { m:'Окт', ov:3400000, fi:136000 }, { m:'Ноя', ov:2900000, fi:116000 },
+    { m:'Дек', ov:4100000, fi:182000 }, { m:'Янв', ov:3200000, fi:142000 },
+    { m:'Фев', ov:2800000, fi:112000 },
+];
+const RISK_DATA = [
+    { name:'Критические', val:3, color:'#dc2626' },
+    { name:'Средний риск', val:3, color:'#f59e0b' },
+    { name:'Низкий риск', val:2, color:'#10b981' },
+];
+
+const fmt = n => n.toLocaleString('ru-RU');
+
+let toastTimer;
+function showToast(title, desc, icon='fa-check-circle', iconColor='text-emerald-400') {
+    clearTimeout(toastTimer);
+    document.getElementById('toastTitle').textContent = title;
+    document.getElementById('toastDesc').textContent = desc;
+    const ic = document.getElementById('toastIcon');
+    ic.className = 'fas ' + icon + ' ' + iconColor + ' mt-0.5';
+    const t = document.getElementById('toast');
+    t.classList.remove('hidden');
+    toastTimer = setTimeout(() => t.classList.add('hidden'), 4000);
+}
+
+function closeBanner() { document.getElementById('alertBanner').classList.add('hidden'); }
+function urgentAction() {
+    showToast('Срочное вмешательство', 'AI-контроллер уведомляет ответственных лиц', 'fa-bolt', 'text-amber-400');
+    closeBanner();
+}
+
+function loadDemo() {
+    const totalOverdue = ITEMS.reduce((s,i)=>s+i.a,0);
+    const totalFines = ITEMS.reduce((s,i)=>s+i.f,0);
+    const critical = ITEMS.filter(i=>i.s==='overdue').length;
+    const saved = 487000;
+
+    document.getElementById('welcomeBlock').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+
+    document.getElementById('mTotal').textContent = fmt(totalOverdue) + ' ₽';
+    document.getElementById('mFines').textContent = fmt(totalFines) + ' ₽';
+    document.getElementById('mCritical').textContent = critical;
+    document.getElementById('mSaved').textContent = fmt(saved) + ' ₽';
+
+    const pct = Math.round((saved / totalFines) * 100);
+    document.getElementById('savePct').textContent = pct + '%';
+    document.getElementById('saveLabel').textContent = fmt(saved) + ' ₽';
+    document.getElementById('riskLabel').textContent = fmt(totalFines) + ' ₽';
+    setTimeout(() => { document.getElementById('saveBar').style.width = pct + '%'; }, 100);
+
+    // Banner
+    document.getElementById('bannerAmt').textContent = fmt(totalFines);
+    document.getElementById('alertBanner').classList.remove('hidden');
+
+    // Table
+    const tbody = document.getElementById('overdueTable');
+    tbody.innerHTML = '';
+    ITEMS.forEach(item => {
+        const statusClass = item.s === 'overdue' ? 'status-overdue blink-red' : item.s === 'risk' ? 'status-risk' : 'status-normal';
+        const statusLabel = item.s === 'overdue' ? '<i class="fas fa-exclamation-triangle mr-1"></i>Просрочено' : item.s === 'risk' ? '<i class="fas fa-clock mr-1"></i>Риск' : '<i class="fas fa-check-circle mr-1"></i>Норма';
+        const rowClass = item.s === 'overdue' ? 'row-overdue' : '';
+        const dayColor = item.days > 30 ? 'text-red-400' : item.days > 14 ? 'text-amber-400' : 'text-slate-300';
+        tbody.innerHTML += `
+            <tr class="${rowClass} border-b border-slate-700/30 transition">
+                <td class="px-5 py-3.5 font-medium text-white">${item.c}</td>
+                <td class="px-5 py-3.5 text-slate-400">${item.d}</td>
+                <td class="px-5 py-3.5 text-right font-semibold tabular-nums text-white">${fmt(item.a)} ₽</td>
+                <td class="px-5 py-3.5 text-center font-bold tabular-nums ${dayColor}">${item.days}</td>
+                <td class="px-5 py-3.5 text-right font-semibold tabular-nums text-red-400">${fmt(item.f)} ₽</td>
+                <td class="px-5 py-3.5 text-center"><span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusClass}">${statusLabel}</span></td>
+            </tr>`;
+    });
+
+    // Action log
+    const log = document.getElementById('actionLog');
+    log.innerHTML = '';
+    ACTIONS.forEach(a => {
+        const colors = a.type === 'critical' ? 'bg-red-600/20 text-red-400' : a.type === 'warning' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-600/20 text-emerald-400';
+        log.innerHTML += `
+            <div class="flex items-start gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700/30">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${colors}"><i class="fas ${a.icon} text-sm"></i></div>
+                <div><p class="text-sm text-white font-medium leading-snug">${a.msg}</p><p class="text-xs text-slate-500 mt-1">${a.time}</p></div>
+            </div>`;
+    });
+
+    // Trend chart
+    const tCtx = document.getElementById('trendChart').getContext('2d');
+    new Chart(tCtx, {
+        type: 'line',
+        data: {
+            labels: TREND.map(t=>t.m),
+            datasets: [
+                { label:'Просрочки', data: TREND.map(t=>t.ov), borderColor:'#dc2626', backgroundColor:'rgba(220,38,38,0.15)', fill:true, tension:.4, borderWidth:2, pointRadius:3 },
+                { label:'Штрафы', data: TREND.map(t=>t.fi), borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.1)', fill:true, tension:.4, borderWidth:2, pointRadius:3 }
+            ]
+        },
+        options: { responsive:true, plugins:{ legend:{ labels:{ color:'#94a3b8', font:{size:12} } }, tooltip:{ callbacks:{ label: ctx => ctx.dataset.label+': '+fmt(ctx.parsed.y)+' ₽' } } }, scales:{ x:{ grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#94a3b8'} }, y:{ grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#94a3b8', callback:v=>(v/1000).toFixed(0)+'к'} } } }
+    });
+
+    // Risk donut
+    const rCtx = document.getElementById('riskChart').getContext('2d');
+    new Chart(rCtx, {
+        type: 'doughnut',
+        data: { labels: RISK_DATA.map(r=>r.name), datasets:[{ data: RISK_DATA.map(r=>r.val), backgroundColor: RISK_DATA.map(r=>r.color), borderWidth:0, hoverOffset:8 }] },
+        options: { responsive:false, cutout:'60%', plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ctx.label+': '+ctx.parsed+' шт.' } } } }
+    });
+
+    const total = RISK_DATA.reduce((s,r)=>s+r.val,0);
+    const legend = document.getElementById('riskLegend');
+    legend.innerHTML = RISK_DATA.map(r=>`
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full" style="background:${r.color}"></div><span class="text-slate-300">${r.name}</span></div>
+            <div class="flex items-center gap-2"><span class="text-white font-semibold">${r.val}</span><span class="text-slate-500 text-xs w-8 text-right">${Math.round(r.val/total*100)}%</span></div>
+        </div>`).join('');
+
+    showToast('Демо-данные загружены', 'Система обнаружила 3 критических просрочки');
+}
+</script>
+</body>
+</html>
